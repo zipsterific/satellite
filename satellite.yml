@@ -20,8 +20,8 @@
     def_scenario: "satellite"
 
    # RHSM Credentials
-    rhsm_username: "alan.ebbert@usbank.com"
-    rhsm_password: "ef1@mgU@"
+    rhsm_username: ""
+    rhsm_password: ""
 
     # Standard Values
     sat_version: "6.16"

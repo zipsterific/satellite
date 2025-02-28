@@ -6,8 +6,8 @@
 
   vars:
     # RHSM Credentials
-    rhsm_username: "alan.ebbert@usbank.com"
-    rhsm_password: "ef1@mgU@"
+    rhsm_username: ""
+    rhsm_password: ""
 
     # Repos to Enable
     repos_to_enable:
