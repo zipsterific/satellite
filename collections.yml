@@ -1,0 +1,35 @@
+---
+
+- name: Satellite Installer Playbook here
+  hosts: localhost
+  become: true
+
+  vars:
+    # RHSM Credentials
+    rhsm_username: "alan.ebbert@usbank.com"
+    rhsm_password: "ef1@mgU@"
+
+    # Repos to Enable
+    repos_to_enable:
+    - satellite-6.16-for-rhel-9-x86_64-rpms
+    - satellite-maintenance-6.16-for-rhel-9-x86_64-rpms
+
+  tasks:
+
+    - name: "Register with RHN"
+      command: "subscription-manager register --username {{ rhsm_username }} --password {{ rhsm_password }}"
+      ignore_errors: yes
+
+    - name: Enable Required Repositories
+      command: "subscription-manager repos --enable={{ item }}"
+      loop: "{{ repos_to_enable }}"
+
+    - name: Install Collections
+      ansible.builtin.dnf:
+        name:
+          - ansible-collection-redhat-satellite
+          - ansible-collection-redhat-satellite_operations
+        state: present
+
+    - name: Install Galaxy community.general
+      command: "ansible-galaxy collection install community.general"
