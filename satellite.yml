@@ -285,6 +285,20 @@
       tags:
         - promote
 
+    # Promoting the CCV to Dev/QA/Prod
+    - name: "Ensure content view gets promoted to Dev/QA/Prod"
+      redhat.satellite.content_view_version:
+        organization: "{{ sat_org }}"
+        server_url: "https://{{ ansible_facts['nodename'] }}"
+        username: "{{ sat_user }}"
+        password: "{{ sat_pass }}"
+        content_view: "ccv_acme_rhel9"
+        lifecycle_environments:
+          - Previous
+          - Current
+      tags:
+        - promote
+
     # Activation Key actions
     - import_role:
         name: redhat.satellite.activation_keys
@@ -295,8 +309,22 @@
         satellite_password: "{{ sat_pass }}"
         satellite_activation_keys:
           - name: "ak_rhel8-prod"
-          - name: "ak_prod_rhel8"
             lifecycle_environment: "Current"
             content_view: "ccv_acme_rhel8"
+      tags:
+        - ak
+
+    # Activation Key actions
+    - import_role:
+        name: redhat.satellite.activation_keys
+      vars:
+        satellite_organization: "{{ sat_org }}"
+        satellite_server_url: "https://{{ ansible_facts['nodename'] }}"
+        satellite_username: "{{ sat_user }}"
+        satellite_password: "{{ sat_pass }}"
+        satellite_activation_keys:
+          - name: "ak_rhel9-prod"
+            lifecycle_environment: "Current"
+            content_view: "ccv_acme_rhel9"
       tags:
         - ak
