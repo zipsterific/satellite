@@ -64,7 +64,6 @@
       ansible.builtin.shell: |
         pool_id=$(subscription-manager list --all --available --matches="RH00008" | grep Pool | head -n1 | awk '{print $3}') && subscription-manager attach --pool $pool_id
 
-
     # Repositories
     - name: Disabling all the repos
       community.general.rhsm_repository:
@@ -123,42 +122,37 @@
       tags:
         - post
 
-    # Repository actions
-    - import_role:
-        name: redhat.satellite.repositories
-      vars:
-        satellite_organization: "{{ sat_org }}"
-        satellite_server_url: "https://{{ ansible_facts['nodename'] }}"
-        satellite_username: "{{ sat_user }}"
-        satellite_password: "{{ sat_pass }}"
-        satellite_products:
-          - name: Red Hat Enterprise Linux for x86_64
-            repository_sets:
-              - name: Red Hat Enterprise Linux 8 for x86_64 - BaseOS (RPMs)
-                releasever: 8
-              - name: Red Hat Enterprise Linux 8 for x86_64 - AppStream (RPMs)
-                releasever: 8 
-              - name: Red Hat Enterprise Linux 9 for x86_64 - BaseOS (RPMs)
-                releasever: 9 
-              - name: Red Hat Enterprise Linux 9 for x86_64 - AppStream (RPMs)
-                releasever: 9 
-              - name: Red Hat Satellite Client 6 for RHEL 8 x86_64 (RPMs)
-              - name: Red Hat Satellite Client 6 for RHEL 9 x86_64 (RPMs)
-      tags:
-        - repos
-
-    # Repository actions
-    - import_role:
-        name: redhat.satellite.repositories
-      vars:
-        satellite_organization: "{{ sat_org }}"
-        satellite_server_url: "https://{{ ansible_facts['nodename'] }}"
-        satellite_username: "{{ sat_user }}"
-        satellite_password: "{{ sat_pass }}"
-        satellite_products:
-          - name: Red Hat Enterprise Linux Server - Extended Life Cycle Support
-            repository_sets:
-              - name: Red Hat Enterprise Linux 7 Server - Extended Life Cycle Support RPMs x86_64
+    - name: "Enable Repositories"
+      redhat.satellite.repository_set:
+        username: "{{ sat_user }}"
+        password: "{{ sat_pass }}"
+        server_url: "https://{{ ansible_facts['nodename'] }}"
+        organization: "{{ sat_org }}"
+        state: enabled
+        label: "{{ item.label }}"
+        repositories: "{{ item.repositories | default(omit) }}"
+        all_repositories: "{{ item.repositories is not defined }}"
+      loop:
+        - label: rhel-7-server-els-optional-rpms
+        - label: rhel-7-server-els-rpms
+        - label: rhel-7-server-satellite-maintenance-6-rpms
+        - label: rhel-7-server-extras-rpms
+        #
+        - label: rhel-8-for-x86_64-baseos-rpms
+          repositories: 
+            - releasever: 8
+        - label: rhel-8-for-x86_64-appstream-rpms
+          repositories: 
+            - releasever: 8
+        - label: satellite-client-6-for-rhel-8-x86_64-rpms
+        #
+        - label: rhel-9-for-x86_64-baseos-rpms
+          repositories: 
+            - releasever: 9
+        - label: rhel-9-for-x86_64-appstream-rpms
+          repositories: 
+            - releasever: 9
+        - label: satellite-client-6-for-rhel-9-x86_64-rpms
       tags:
         - repos
 
@@ -173,7 +167,6 @@
       tags:
         - repos
 
-
     #  The call below doesn't have any "--async" feature at this moment. Keeping it commented until we get this feature done.
     - name: "Repo Sync - Red Hat Enterprise Linux for x86_64"
       redhat.satellite.repository_sync:
@@ -182,6 +175,16 @@
         server_url: "https://{{ ansible_facts['nodename'] }}"
         organization: "{{ sat_org }}"
         product: "Red Hat Enterprise Linux Server - Extended Life Cycle Support"
+      tags:
+        - repos
+
+    - name: "Repo Sync - Red Hat Enterprise Linux for x86_64"
+      redhat.satellite.repository_sync:
+        username: "{{ sat_user }}"
+        password: "{{ sat_pass }}"
+        server_url: "https://{{ ansible_facts['nodename'] }}"
+        organization: "{{ sat_org }}"
+        product: "Red Hat Enterprise Linux Server"
       tags:
         - repos
 
@@ -196,11 +199,11 @@
         satellite_sync_plans:
           - name: Daily Sync
             interval: daily
-            # sync_date: 2020-11-07 00:00:00 UTC
             sync_date: 2020-11-07 03:00:00 PDT
             products:
-              # - Red Hat Enterprise Linux Server
               - Red Hat Enterprise Linux for x86_64
+              - Red Hat Enterprise Linux Server
+              - Red Hat Enterprise Linux Server - Extended Life Cycle Support
       tags:
         - sync-plan
 
@@ -231,18 +234,10 @@
         satellite_content_views:
           - name: cv_rhel7
             repositories:
-              - name: Red Hat Enterprise Linux 7 Server RPMs for x86_64 7Server
-                product: 'Red Hat Enterprise Linux Server'
-              - name: Red Hat Enterprise Linux 7 Server ISOs x86_64 7Server
-                product: 'Red Hat Enterprise Linux Server'
-              - name: Red Hat Enterprise Linux 7 Server - Optional RPMs x86_64 7Server
-                product: 'Red Hat Enterprise Linux Server'
-              - name: Red Hat Enterprise Linux 7 Server - Extra RPMs x86_64 7Server
-                product: 'Red Hat Enterprise Linux Server'
-              - name: Red Hat Enterprise Linux 7 Server Kickstart x86_64 7.9
-                product: 'Red Hat Enterprise Linux Server'
-              - name: Red Hat Satellite Maintenance 6 for RHEL 7 Server RPMs x86_64
-                product: 'Red Hat Enterprise Linux Server'
+              - name: 	Red Hat Enterprise Linux 7 Server - Extended Life Cycle Support - Optional RPMs x86_64
+                product: 'Red Hat Enterprise Linux Server - Extended Life Cycle Support'
+              - name: Red Hat Enterprise Linux 7 Server - Extended Life Cycle Support RPMs x86_64
+                product: 'Red Hat Enterprise Linux Server - Extended Life Cycle Support'
           - name: ccv_acme_rhel7
             auto_publish: true
             components:
@@ -309,6 +304,7 @@
         satellite_username: "{{ sat_user }}"
         satellite_password: "{{ sat_pass }}"
         satellite_content_views:
+          - cv_rhel7
           - cv_rhel8
           - cv_rhel9
       tags:
@@ -327,10 +323,25 @@
         satellite_username: "{{ sat_user }}"
         satellite_password: "{{ sat_pass }}"
         satellite_content_views:
+          - ccv_acme_rhel7
           - ccv_acme_rhel8
           - ccv_acme_rhel9
       tags:
         - publish
+
+    # Promoting the CCV to Dev/QA/Prod
+    - name: "Ensure content view gets promoted to Dev/QA/Prod"
+      redhat.satellite.content_view_version:
+        organization: "{{ sat_org }}"
+        server_url: "https://{{ ansible_facts['nodename'] }}"
+        username: "{{ sat_user }}"
+        password: "{{ sat_pass }}"
+        content_view: "ccv_acme_rhel7"
+        lifecycle_environments:
+          - Previous
+          - Current
+      tags:
+        - promote
 
     # Promoting the CCV to Dev/QA/Prod
     - name: "Ensure content view gets promoted to Dev/QA/Prod"
@@ -359,6 +370,21 @@
           - Current
       tags:
         - promote
+
+    # Activation Key actions
+    - import_role:
+        name: redhat.satellite.activation_keys
+      vars:
+        satellite_organization: "{{ sat_org }}"
+        satellite_server_url: "https://{{ ansible_facts['nodename'] }}"
+        satellite_username: "{{ sat_user }}"
+        satellite_password: "{{ sat_pass }}"
+        satellite_activation_keys:
+          - name: "ak_rhel7-prod"
+            lifecycle_environment: "Current"
+            content_view: "ccv_acme_rhel7"
+      tags:
+        - ak
 
     # Activation Key actions
     - import_role:
