@@ -70,7 +70,7 @@
         name: '*'
         state: disabled
 
-    - name: Enabling the Satellite repos for Satellite 6.16 on RHEL9
+    - name: Enabling the Necessary Repos for Installing Satellite on RHEL9
       community.general.rhsm_repository:
         name: rhel-9-for-x86_64-baseos-rpms,rhel-9-for-x86_64-appstream-rpms,satellite-6.16-for-rhel-9-x86_64-rpms,satellite-maintenance-6.16-for-rhel-9-x86_64-rpms
         state: enabled
@@ -88,7 +88,7 @@
         state: present
 
     # Add this here, before runing the installer
-    - name: Removing puppetlabs ssl directory "/etc/puppetlabs/puppet/ssl/"
+    - name: Removing Puppetlabs SSL Directory "/etc/puppetlabs/puppet/ssl/"
       ansible.builtin.file:
         path: /etc/puppetlabs/puppet/ssl/
         state: absent
@@ -157,7 +157,7 @@
         - repos
 
     #  The call below doesn't have any "--async" feature at this moment. Keeping it commented until we get this feature done.
-    - name: "Repo Sync - Red Hat Enterprise Linux for x86_64"
+    - name: "Repo Sync - Red Hat Enterprise Linux 8 for x86_64"
       redhat.satellite.repository_sync:
         username: "{{ sat_user }}"
         password: "{{ sat_pass }}"
@@ -168,7 +168,7 @@
         - repos
 
     #  The call below doesn't have any "--async" feature at this moment. Keeping it commented until we get this feature done.
-    - name: "Repo Sync - Red Hat Enterprise Linux for x86_64"
+    - name: "Repo Sync - Red Hat Enterprise Linux 7 for x86_64"
       redhat.satellite.repository_sync:
         username: "{{ sat_user }}"
         password: "{{ sat_pass }}"
@@ -178,7 +178,7 @@
       tags:
         - repos
 
-    - name: "Repo Sync - Red Hat Enterprise Linux for x86_64"
+    - name: "Repo Sync - Red Hat Enterprise Linux 9 for x86_64"
       redhat.satellite.repository_sync:
         username: "{{ sat_user }}"
         password: "{{ sat_pass }}"
@@ -330,7 +330,7 @@
         - publish
 
     # Promoting the CCV to Dev/QA/Prod
-    - name: "Ensure content view gets promoted to Dev/QA/Prod"
+    - name: "Ensure Content View for RHEL7 gets Promoted to Previous/Current"
       redhat.satellite.content_view_version:
         organization: "{{ sat_org }}"
         server_url: "https://{{ ansible_facts['nodename'] }}"
@@ -344,7 +344,7 @@
         - promote
 
     # Promoting the CCV to Dev/QA/Prod
-    - name: "Ensure content view gets promoted to Dev/QA/Prod"
+    - name: "Ensure Content View for RHEL8 gets Promoted to Previous/Current"
       redhat.satellite.content_view_version:
         organization: "{{ sat_org }}"
         server_url: "https://{{ ansible_facts['nodename'] }}"
@@ -358,7 +358,7 @@
         - promote
 
     # Promoting the CCV to Dev/QA/Prod
-    - name: "Ensure content view gets promoted to Dev/QA/Prod"
+    - name: "Ensure Content View for RHEL9 gets Promoted to Previous/Current"
       redhat.satellite.content_view_version:
         organization: "{{ sat_org }}"
         server_url: "https://{{ ansible_facts['nodename'] }}"
