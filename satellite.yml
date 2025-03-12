@@ -8,11 +8,16 @@
 
   vars:
     # Satellite Information
-    # sat_user: "satprodadmin"
+    def_scenario: "satellite"
     sat_user: "admin"
     sat_pass: "secret"
-    sat_org: "my test"
-    def_scenario: "satellite"
+    sat_org: "my test" 
+    sat_proxy: "http://myproxy.example.com:8080"
+    sat_proxy_name: "setme2"
+    ldap_name: "LDAPName"
+    ldap_host: "my.ldap.com"
+    ldap_account: "SATRedHATAPPID"
+    ldap_dn_base: "DC=us,DC=dns,DC=com"
 
     # RHSM Credentials
     rhsm_username: ""
@@ -27,12 +32,12 @@
 
   tasks:
 
-      - name: Disabling and Stopping firewalld
+    - name: Disabling and Stopping firewalld
       ansible.builtin.systemd:
         name: firewalld
         state: stopped
 
-     - name: Copying the Manifest
+    - name: Copying the Manifest
       ansible.builtin.copy:
         src: manifest.zip
         dest: /root/manifest.zip
@@ -91,6 +96,26 @@
           - '--foreman-initial-admin-password {{ sat_pass }}'
       when: sat_version == "6.16"
 
+    # # Set the Proxy
+    # - name: Create the Proxy
+    #   redhat.satellite.http_proxy:
+    #     name: "{{ sat_proxy_name }}"
+    #     url: "{{ sat_proxy }}"
+    #     organizations:
+    #       - "{{ sat_org }}"
+    #     server_url: "https://{{ ansible_facts['nodename'] }}"
+    #     username: "{{ sat_user }}"
+    #     password: "{{ sat_pass }}"
+    #     state: present
+    #   tags:
+    #     - proxy
+
+    # # Select the Proxy
+    # - name: Select the Proxy
+    #   ansible.builtin.command: hammer settings set --name=content_default_http_proxy --value="{{ sat_proxy_name }}"
+    #   tags:
+    #     - proxy
+
     # Importing the manifest
     - import_role:
         name: redhat.satellite.manifest
@@ -111,23 +136,23 @@
 
     - name: Setup LDAP
       redhat.satellite.auth_source_ldap:
-        name: "Example LDAP"
-        host: " "
+        name: " {{ ldap_name }}"
+        host: "{{ ldap_host }}"
         server_url: "https://{{ ansible_facts['nodename'] }}"
         organizations:
           - "{{ sat_org }}"
         username: "{{ sat_user }}"
         password: "{{ sat_pass }}"
-        account: SATRedHATAPPID
-        base_dn: DC=us,DC=,DC=com
-        groups_base: DC=us,DC=,DC=com
+        account: "{{ ldap_account }}"
+        base_dn: "{{ ldap_dn_base }}"
+        groups_base: "{{ ldap_dn_base }}"
         tls: true
         server_type: active_directory
         port: 636
         onthefly_register: true
         usergroup_sync: true
         attr_mail: mail
-        attr_login: 
+        attr_login: mylogin
         attr_firstname: givenName
         attr_lastname: sn
         attr_photo: " "
