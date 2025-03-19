@@ -19,5 +19,6 @@
 
     - name: Install Galaxy community.general
       command: "ansible-galaxy collection install community.general"
+      delegate_to: localhost
       tags:
         - galaxy
