@@ -1,5 +1,6 @@
 ---
-- name: Satellite Installer Playbook
+
+- name: Satellite Installer Playbook here
   hosts: localhost
   become: true
   collections:
@@ -7,17 +8,11 @@
     - redhat.satellite
 
   vars:
-    # Satellite Information
-    def_scenario: "satellite"
+   # Satellite Information
     sat_user: "admin"
     sat_pass: "secret"
-    sat_org: "USB" 
-    sat_proxy: "http://myproxy.example.com:8080"
-    sat_proxy_name: "setme2"
-    ldap_name: "LDAPName"
-    ldap_host: "my.ldap.com"
-    ldap_account: "SATRedHATAPPID"
-    ldap_dn_base: "DC=us,DC=dns,DC=com"
+    sat_org: "USB"
+    def_scenario: "satellite"
 
    # RHSM Credentials
     rhsm_username: ""

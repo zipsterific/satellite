@@ -1,0 +1,23 @@
+---
+- name: Capsule Registration
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Register with Satellite
+      ansible.builtin.command: "hammer host-registration generate-command \
+      --activation-key ak_rhel9-prod \
+      --insecure true \
+      --setup-insights false \
+      --ignore-subman-errors true \
+      --force true"
+      register: hammer_command
+
+    - name: Save Registration Command
+      local_action:
+        copy content="{{ hammer_command.stdout }}" dest="/root/register.cmd"
+
+    - name: Install Galaxy community.general
+      command: "ansible-galaxy collection install community.general"
+      tags:
+        - galaxy

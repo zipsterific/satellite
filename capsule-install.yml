@@ -1,0 +1,77 @@
+---
+- name: Capsule Installation
+  hosts: all
+  become: true
+
+  tasks:
+
+    - name: Disable firewalld
+      ansible.builtin.systemd:
+        name: firewalld
+        state: stopped
+
+    - name: Run register.cmd
+      shell: 'cat /root/register.cmd'
+      register: reg_cmd
+      delegate_to: localhost
+      tags:
+        - register
+
+    - name: Register with Satellite
+      # shell: bash < /root/register.cmd
+      shell: "{{ reg_cmd.stdout }}"
+      ignore_errors: true
+      tags:
+        - register
+
+    - name: Disabling all the repos
+      community.general.rhsm_repository:
+        name: '*'
+        state: disabled
+      tags:
+        - disable-repos
+
+    - name: Enable the Satellite Repos for Capsule
+      community.general.rhsm_repository:
+        name: 
+          - rhel-9-for-x86_64-baseos-rpms
+          - rhel-9-for-x86_64-appstream-rpms
+          - satellite-capsule-6.16-for-rhel-9-x86_64-rpms
+          - satellite-maintenance-6.16-for-rhel-9-x86_64-rpms
+        state: enabled
+      tags:
+        - enable-repos
+
+    - name: Updating the server
+      ansible.builtin.yum:
+        name: '*'
+        state: latest
+      tags:
+        - update-server
+
+    - name: Install Capsule
+      ansible.builtin.yum:
+        name: 'satellite-capsule'
+        state: latest
+      tags:
+        - update-server
+
+    - name: Reboot the Server
+      shell: "sleep 5 && reboot"
+      async: 1
+      poll: 0
+    
+    - name: Wait for the Reboot to Complete
+      wait_for_connection:
+        connect_timeout: 10
+        sleep: 5
+        delay: 5
+        timeout: 300
+
+    - name: Check the Uptime of the Server
+      shell: "uptime"
+      register: Uptime
+
+    - debug: var=Uptime
+    
+    # systemctl enable --now cockpit.socket

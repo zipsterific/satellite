@@ -11,7 +11,7 @@
     def_scenario: "satellite"
     sat_user: "admin"
     sat_pass: "secret"
-    sat_org: "USB" 
+    sat_org: "my test" 
     sat_proxy: "http://myproxy.example.com:8080"
     sat_proxy_name: "setme2"
     ldap_name: "LDAPName"
@@ -19,7 +19,7 @@
     ldap_account: "SATRedHATAPPID"
     ldap_dn_base: "DC=us,DC=dns,DC=com"
 
-   # RHSM Credentials
+    # RHSM Credentials
     rhsm_username: ""
     rhsm_password: ""
 
@@ -32,23 +32,19 @@
 
   tasks:
 
-    # Firewall
     - name: Disabling and Stopping firewalld
       ansible.builtin.systemd:
         name: firewalld
         state: stopped
 
-    # Manifest File
-    - name: Copying the manifest
+    - name: Copying the Manifest
       ansible.builtin.copy:
         src: manifest.zip
         dest: /root/manifest.zip
 
-    # Cleaning the subsman cache
     - name: Subscription-manager clean
       ansible.builtin.command: subscription-manager clean
 
-    # Register to RHSM
     - name: Register to RHSM
       community.general.redhat_subscription:
         state: present
@@ -56,42 +52,41 @@
         password: "{{ rhsm_password }}"
         force_register: yes
 
-    # Attaching the Employee Subscription
-    - name: Attach the correct entitlement
+    - name: Attach the Correct Entitlement
       ansible.builtin.shell: |
         pool_id=$(subscription-manager list --all --available --matches="MCT3718" | grep Pool | head -n1 | awk '{print $3}') && subscription-manager attach --pool $pool_id
+    # and for good measure attache this one
+    - name: Attach the correct entitlement
+      ansible.builtin.shell: |
+        pool_id=$(subscription-manager list --all --available --matches="RH00008" | grep Pool | head -n1 | awk '{print $3}') && subscription-manager attach --pool $pool_id
 
-    # Repositories
-    - name: Disabling all the repos
+    - name: Disabling all the Repos
       community.general.rhsm_repository:
         name: '*'
         state: disabled
 
-    - name: Enabling the Satellite repos for Satellite 6.16 on RHEL9
+    - name: Enabling the Necessary Repos for Installing Satellite on RHEL9
       community.general.rhsm_repository:
         name: rhel-9-for-x86_64-baseos-rpms,rhel-9-for-x86_64-appstream-rpms,satellite-6.16-for-rhel-9-x86_64-rpms,satellite-maintenance-6.16-for-rhel-9-x86_64-rpms
         state: enabled
       when: sat_version == "6.16" and base_os == "rhel9"
 
-    - name: Updating the server
+    - name: Updating the Server
       ansible.builtin.yum:
         name: '*'
         state: latest
 
-    # Packages
     - name: Installing Satellite Package
       ansible.builtin.yum:
         name: satellite
         state: present
 
-    # Add this here, before runing the installer
-    - name: Removing puppetlabs ssl directory "/etc/puppetlabs/puppet/ssl/"
+    - name: Removing Puppetlabs SSL Directory "/etc/puppetlabs/puppet/ssl/"
       ansible.builtin.file:
         path: /etc/puppetlabs/puppet/ssl/
         state: absent
 
     # Calling the installer
-    # changing the call to the admin-password, adding "-initial-"
     - import_role:
         name: redhat.satellite_operations.installer
       vars:
@@ -100,6 +95,26 @@
           - '--foreman-initial-organization "{{ sat_org }}"'
           - '--foreman-initial-admin-password {{ sat_pass }}'
       when: sat_version == "6.16"
+
+    # # Set the Proxy
+    # - name: Create the Proxy
+    #   redhat.satellite.http_proxy:
+    #     name: "{{ sat_proxy_name }}"
+    #     url: "{{ sat_proxy }}"
+    #     organizations:
+    #       - "{{ sat_org }}"
+    #     server_url: "https://{{ ansible_facts['nodename'] }}"
+    #     username: "{{ sat_user }}"
+    #     password: "{{ sat_pass }}"
+    #     state: present
+    #   tags:
+    #     - proxy
+
+    # # Select the Proxy
+    # - name: Select the Proxy
+    #   ansible.builtin.command: hammer settings set --name=content_default_http_proxy --value="{{ sat_proxy_name }}"
+    #   tags:
+    #     - proxy
 
     # Importing the manifest
     - import_role:
@@ -119,36 +134,67 @@
       tags:
         - post
 
-    # Repository actions
-    - import_role:
-        name: redhat.satellite.repositories
-      vars:
-        satellite_organization: "{{ sat_org }}"
-        satellite_server_url: "https://{{ ansible_facts['nodename'] }}"
-        satellite_username: "{{ sat_user }}"
-        satellite_password: "{{ sat_pass }}"
-        satellite_products:
-          - name: Red Hat Enterprise Linux for x86_64
-            repository_sets:
-              - name: Red Hat Enterprise Linux 8 for x86_64 - BaseOS (RPMs)
-                releasever: 8
-              - name: Red Hat Enterprise Linux 8 for x86_64 - AppStream (RPMs)
-                releasever: 8 
-              - name: Red Hat Enterprise Linux 9 for x86_64 - BaseOS (RPMs)
-                releasever: 9 
-              - name: Red Hat Enterprise Linux 9 for x86_64 - AppStream (RPMs)
-                releasever: 9 
-              - name: Red Hat Satellite Client 6 for RHEL 8 x86_64 (RPMs)
-              - name: Red Hat Satellite Client 6 for RHEL 9 x86_64 (RPMs)
-              - name: Red Hat Satellite Maintenance 6.16 for RHEL 9 x86_64 (RPMs)
-          - name: Red Hat Satellite Capsule
-            repository_sets:
-              - name: Red Hat Satellite Capsule 6.16 for RHEL 9 x86_64 (RPMs)
+    - name: Setup LDAP
+      redhat.satellite.auth_source_ldap:
+        name: " {{ ldap_name }}"
+        host: "{{ ldap_host }}"
+        server_url: "https://{{ ansible_facts['nodename'] }}"
+        organizations:
+          - "{{ sat_org }}"
+        username: "{{ sat_user }}"
+        password: "{{ sat_pass }}"
+        account: "{{ ldap_account }}"
+        base_dn: "{{ ldap_dn_base }}"
+        groups_base: "{{ ldap_dn_base }}"
+        tls: true
+        server_type: active_directory
+        port: 636
+        onthefly_register: true
+        usergroup_sync: true
+        attr_mail: mail
+        attr_login: mylogin
+        attr_firstname: givenName
+        attr_lastname: sn
+        attr_photo: " "
+        state: present
+      tags:
+        - ldap
+
+    - name: "Enable Repositories for OS Updates and Patches"
+      redhat.satellite.repository_set:
+        username: "{{ sat_user }}"
+        password: "{{ sat_pass }}"
+        server_url: "https://{{ ansible_facts['nodename'] }}"
+        organization: "{{ sat_org }}"
+        state: enabled
+        label: "{{ item.label }}"
+        repositories: "{{ item.repositories | default(omit) }}"
+        all_repositories: "{{ item.repositories is not defined }}"
+      loop:
+        - label: rhel-7-server-els-optional-rpms
+        - label: rhel-7-server-els-rpms
+        - label: rhel-7-server-satellite-maintenance-6-rpms
+        - label: rhel-7-server-extras-rpms
+        #
+        - label: rhel-8-for-x86_64-baseos-rpms
+          repositories: 
+            - releasever: 8
+        - label: rhel-8-for-x86_64-appstream-rpms
+          repositories: 
+            - releasever: 8
+        - label: satellite-client-6-for-rhel-8-x86_64-rpms
+        #
+        - label: rhel-9-for-x86_64-baseos-rpms
+          repositories: 
+            - releasever: 9
+        - label: rhel-9-for-x86_64-appstream-rpms
+          repositories: 
+            - releasever: 9
+        - label: satellite-client-6-for-rhel-9-x86_64-rpms
       tags:
         - repos
 
-    #  The call below doesn't have any "--async" feature at this moment. Keeping it commented until we get this feature done.
-    - name: "Repo Sync - Red Hat Enterprise Linux for x86_64"
+    - name: "Repo Sync - Red Hat Enterprise Linux 8 for x86_64"
       redhat.satellite.repository_sync:
         username: "{{ sat_user }}"
         password: "{{ sat_pass }}"
@@ -156,17 +202,27 @@
         organization: "{{ sat_org }}"
         product: "Red Hat Enterprise Linux for x86_64"
       tags:
-        - repos-sync
+        - repos
 
-    - name: "Repo Sync - Red Hat Satellite Capsule"
+    - name: "Repo Sync - Red Hat Enterprise Linux 7 for x86_64"
       redhat.satellite.repository_sync:
         username: "{{ sat_user }}"
         password: "{{ sat_pass }}"
         server_url: "https://{{ ansible_facts['nodename'] }}"
         organization: "{{ sat_org }}"
-        product: "Red Hat Satellite Capsule"
+        product: "Red Hat Enterprise Linux Server - Extended Life Cycle Support"
       tags:
-        - repos-sync
+        - repos
+
+    - name: "Repo Sync - Red Hat Enterprise Linux 9 for x86_64"
+      redhat.satellite.repository_sync:
+        username: "{{ sat_user }}"
+        password: "{{ sat_pass }}"
+        server_url: "https://{{ ansible_facts['nodename'] }}"
+        organization: "{{ sat_org }}"
+        product: "Red Hat Enterprise Linux Server"
+      tags:
+        - repos
 
     # Creating a Sync Plan
     - import_role:
@@ -179,12 +235,11 @@
         satellite_sync_plans:
           - name: Daily Sync
             interval: daily
-            # sync_date: 2020-11-07 00:00:00 UTC
-            sync_date: 2020-11-07 03:00:00 PDT
+            sync_date: 2020-11-07 04:00:00 CDT
             products:
-              # - Red Hat Enterprise Linux Server
               - Red Hat Enterprise Linux for x86_64
-              - Red Hat Satellite Capsule
+              - Red Hat Enterprise Linux Server
+              - Red Hat Enterprise Linux Server - Extended Life Cycle Support
       tags:
         - sync-plan
 
@@ -213,7 +268,29 @@
         satellite_username: "{{ sat_user }}"
         satellite_password: "{{ sat_pass }}"
         satellite_content_views:
-          - name: cv_rhel8
+          - name: RHEL7_base
+            repositories:
+              - name: Red Hat Enterprise Linux 7 Server - Extended Life Cycle Support - Optional RPMs x86_64
+                product: 'Red Hat Enterprise Linux Server - Extended Life Cycle Support'
+              - name: Red Hat Enterprise Linux 7 Server - Extended Life Cycle Support RPMs x86_64
+                product: 'Red Hat Enterprise Linux Server - Extended Life Cycle Support'
+          - name: RHEL7_composite
+            auto_publish: true
+            components:
+              - content_view: RHEL7_base
+                latest: true
+      tags:
+        - content-view
+
+    - import_role:
+        name: redhat.satellite.content_views
+      vars:
+        satellite_organization: "{{ sat_org }}"
+        satellite_server_url: "https://{{ ansible_facts['nodename'] }}"
+        satellite_username: "{{ sat_user }}"
+        satellite_password: "{{ sat_pass }}"
+        satellite_content_views:
+          - name: RHEL8_base
             repositories:
               - name: Red Hat Enterprise Linux 8 for x86_64 - BaseOS RPMs 8
                 product: 'Red Hat Enterprise Linux for x86_64'
@@ -221,10 +298,10 @@
                 product: 'Red Hat Enterprise Linux for x86_64'
               - name: Red Hat Satellite Client 6 for RHEL 8 x86_64 RPMs
                 product: 'Red Hat Enterprise Linux for x86_64'
-          - name: ccv_acme_rhel8
+          - name: RHEL8_composite
             auto_publish: true
             components:
-              - content_view: cv_rhel8
+              - content_view: RHEL8_base
                 latest: true
       tags:
         - content-view
@@ -238,7 +315,7 @@
         satellite_username: "{{ sat_user }}"
         satellite_password: "{{ sat_pass }}"
         satellite_content_views:
-          - name: cv_rhel9
+          - name: RHEL9_base
             repositories:
               - name: Red Hat Enterprise Linux 9 for x86_64 - BaseOS RPMs 9
                 product: 'Red Hat Enterprise Linux for x86_64'
@@ -246,14 +323,10 @@
                 product: 'Red Hat Enterprise Linux for x86_64'
               - name: Red Hat Satellite Client 6 for RHEL 9 x86_64 RPMs
                 product: 'Red Hat Enterprise Linux for x86_64'
-              - name: Red Hat Satellite Maintenance 6.16 for RHEL 9 x86_64 RPMs
-                product: 'Red Hat Enterprise Linux for x86_64'
-              - name: Red Hat Satellite Capsule 6.16 for RHEL 9 x86_64 RPMs
-                product: 'Red Hat Satellite Capsule'
-          - name: ccv_acme_rhel9
+          - name: RHEL9_composite
             auto_publish: true
             components:
-              - content_view: cv_rhel9
+              - content_view: RHEL9_base
                 latest: true
       tags:
         - content-view
@@ -267,15 +340,16 @@
         satellite_username: "{{ sat_user }}"
         satellite_password: "{{ sat_pass }}"
         satellite_content_views:
-          - cv_rhel8
-          - cv_rhel9
+          - RHEL7_base
+          - RHEL8_base
+          - RHEL9_base
       tags:
         - publish
 
-    # Waiting for the sync task to finish, let's add here ~ 30 min
+    # Waiting for the sync task to finish, let's add a couple minutes
     - name: Pause for 3 minutes
       ansible.builtin.pause:
-        minutes: 3
+        minutes: 2
 
     - import_role:
         name: redhat.satellite.content_view_publish
@@ -285,33 +359,45 @@
         satellite_username: "{{ sat_user }}"
         satellite_password: "{{ sat_pass }}"
         satellite_content_views:
-          - ccv_acme_rhel8
-          - ccv_acme_rhel9
+          - RHEL7_composite
+          - RHEL8_composite
+          - RHEL9_composite
       tags:
         - publish
 
-    # Promoting the CCV to Dev/QA/Prod
-    - name: "Ensure content view gets promoted to Dev/QA/Prod"
+    - name: "Ensure Content View for RHEL7 gets Promoted to Previous/Current"
       redhat.satellite.content_view_version:
         organization: "{{ sat_org }}"
         server_url: "https://{{ ansible_facts['nodename'] }}"
         username: "{{ sat_user }}"
         password: "{{ sat_pass }}"
-        content_view: "ccv_acme_rhel8"
+        content_view: "RHEL7_composite"
         lifecycle_environments:
           - Previous
           - Current
       tags:
         - promote
 
-    # Promoting the CCV to Dev/QA/Prod
-    - name: "Ensure content view gets promoted to Dev/QA/Prod"
+    - name: "Ensure Content View for RHEL8 gets Promoted to Previous/Current"
       redhat.satellite.content_view_version:
         organization: "{{ sat_org }}"
         server_url: "https://{{ ansible_facts['nodename'] }}"
         username: "{{ sat_user }}"
         password: "{{ sat_pass }}"
-        content_view: "ccv_acme_rhel9"
+        content_view: "RHEL8_composite"
+        lifecycle_environments:
+          - Previous
+          - Current
+      tags:
+        - promote
+
+    - name: "Ensure Content View for RHEL9 gets Promoted to Previous/Current"
+      redhat.satellite.content_view_version:
+        organization: "{{ sat_org }}"
+        server_url: "https://{{ ansible_facts['nodename'] }}"
+        username: "{{ sat_user }}"
+        password: "{{ sat_pass }}"
+        content_view: "RHEL9_composite"
         lifecycle_environments:
           - Previous
           - Current
@@ -327,23 +413,23 @@
         satellite_username: "{{ sat_user }}"
         satellite_password: "{{ sat_pass }}"
         satellite_activation_keys:
-          - name: "ak_rhel8-prod"
-          - name: "ak_prod_rhel8"
+          - name: "ak_rhel7-prod"
             lifecycle_environment: "Current"
-            content_view: "ccv_acme_rhel8"
-      tags:
-        - ak
-
-    - import_role:
-        name: redhat.satellite.activation_keys
-      vars:
-        satellite_organization: "{{ sat_org }}"
-        satellite_server_url: "https://{{ ansible_facts['nodename'] }}"
-        satellite_username: "{{ sat_user }}"
-        satellite_password: "{{ sat_pass }}"
-        satellite_activation_keys:
+            content_view: "RHEL7_composite"
+          - name: "ak_rhel8-prod"
+            lifecycle_environment: "Current"
+            content_view: "RHEL8_composite"
           - name: "ak_rhel9-prod"
             lifecycle_environment: "Current"
-            content_view: "ccv_acme_rhel9"
+            content_view: "RHEL9_composite"
+          - name: "ak_rhel7-non-prod"
+            lifecycle_environment: "Current"
+            content_view: "RHEL7_composite"
+          - name: "ak_rhel8-non-prod"
+            lifecycle_environment: "Current"
+            content_view: "RHEL8_composite"
+          - name: "ak_rhel9-non-prod"
+            lifecycle_environment: "Current"
+            content_view: "RHEL9_composite"
       tags:
-        - ak
+        - ak      
